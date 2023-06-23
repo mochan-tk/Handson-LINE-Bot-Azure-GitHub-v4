@@ -5,8 +5,6 @@ const express = require('express');
 const crypto = require("crypto");
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { CosmosClient } = require("@azure/cosmos");
-const { CognitiveServicesCredentials } = require("@azure/ms-rest-azure-js");
-const { FaceClient, FaceModels } = require("@azure/cognitiveservices-face");
 
 // Azure Storage
 const blobServiceClient = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING);
@@ -27,11 +25,6 @@ const { endpoint, key, databaseId, containerId } = cosmosDBConfig;
 const cosmosDBClient = new CosmosClient({ endpoint, key });
 const database = cosmosDBClient.database(databaseId);
 const cosmosDBContainer = database.container(containerId);
-
-const faceKey = process.env.COGNITIVESERVICE_KEY;
-const faceEndPoint = process.env.COGNITIVESERVICE_ENDPOINT;
-const cognitiveServiceCredentials = new CognitiveServicesCredentials(faceKey);
-const faceClient = new FaceClient(cognitiveServiceCredentials, faceEndPoint);
 
 // create LINE SDK config from env variables
 const config = {
@@ -150,72 +143,12 @@ async function handleEvent(event) {
       const blockBlobClient = containerClient.getBlockBlobClient(blobName);
       const stream = await client.getMessageContent(event.message.id);
       const data = await getStreamData(stream);
-      blockBlobClient.uploadData(data);
-
-      const querySpec = {
-        query: `SELECT * from c WHERE c.id="${userId}"`
-      };
-      const { resources: items } = await cosmosDBContainer.items
-      .query(querySpec)
-      .fetchAll();
-      let maskflag = 'off';
-      items.forEach(item => {
-        maskflag = item.maskflag;
+      const res = blockBlobClient.uploadData(data);
+      return client.replyMessage(event.replyToken,{
+        type: 'image',
+        originalContentUrl: `https://${blobServiceClient.accountName}.blob.core.windows.net/files/${blobName}`,
+        previewImageUrl: `https://${blobServiceClient.accountName}.blob.core.windows.net/files/${blobName}`
       });
-
-      const changeItem = {
-        id: userId,
-        maskflag: "off"
-      };
-      const { resource: updatedItem } = await cosmosDBContainer
-      .item(userId)
-      .replace(changeItem);
-
-      if (maskflag === 'on') {
-        // https://learn.microsoft.com/ja-jp/azure/cognitive-services/computer-vision/quickstarts-sdk/identity-client-library?tabs=visual-studio&pivots=programming-language-javascript
-        const face_image_url = `https://${blobServiceClient.accountName}.blob.core.windows.net/files/${blobName}`;
-
-        // { type: 'faceMask', noseAndMouthCovered: true }
-        // { type: 'noMask', noseAndMouthCovered: false }
-        let detected_faces = await faceClient.face.detectWithUrl(face_image_url,
-          {
-              detectionModel: "detection_03",
-              recognitionModel : "recognition_04",
-              returnFaceAttributes: ["mask"]
-          });
-        let mask_type = '';
-        let mask_noseAndMouthCovered = '';
-        detected_faces.forEach(detected_face => {
-          console.log(detected_face.faceAttributes.mask.type);
-          console.log(detected_face.faceAttributes.mask.noseAndMouthCovered);
-          mask_type = String(detected_face.faceAttributes.mask.type);
-          mask_noseAndMouthCovered = String(detected_face.faceAttributes.mask.noseAndMouthCovered);
-        });
-
-        let msg = 'マスク検知が動作しませんでした。もう１度やりなおしてください。🙇';
-        if (mask_type === 'noMask') {
-          msg = '🙅❌（むむ！鼻と口がマスクで隠れていない...ここを通すわけには行きませんな...）';
-        } else if (mask_type === 'faceMask') {
-          if (mask_noseAndMouthCovered === 'false') {
-            msg = '✅ マスクの着用を確認しました。できるだけ鼻もマスクで覆うようにしてください。入館証を発行いたします。';
-          } else if (mask_noseAndMouthCovered === 'true') {
-            msg = '🙆✅ 素晴らしい！マスクで鼻と口がしっかり隠れていますね！入館証を発行いたします！🎉🎉🎉';
-          }
-        } else {
-          msg = 'マスク検知が動作しませんでした。もう１度やりなおしてください。🙇';
-        }
-
-        return client.replyMessage(event.replyToken, {
-          type: 'text',
-          text: msg 
-        });
-      } else {
-        return client.replyMessage(event.replyToken,{
-          type: 'image',
-          originalContentUrl: `https://${blobServiceClient.accountName}.blob.core.windows.net/files/${blobName}`,
-          previewImageUrl: `https://${blobServiceClient.accountName}.blob.core.windows.net/files/${blobName}`
-        });
-      }
     } else if (event.message.type === 'audio') {
       //https://developers.line.biz/ja/reference/messaging-api/#audio-message
       //durationはこれでとれそう？ > https://www.npmjs.com/package/mp3-duration
