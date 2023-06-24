@@ -137,6 +137,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
+/*
 resource managedEnvironments 'Microsoft.App/managedEnvironments@2022-10-01' = {
   name: 'managedEnv'
   location: location
@@ -154,6 +155,7 @@ resource managedEnvironments 'Microsoft.App/managedEnvironments@2022-10-01' = {
     name: 'Consumption'
   }
 }
+*/
 
 // https://learn.microsoft.com/ja-jp/dotnet/orleans/deployment/deploy-to-azure-container-apps
 // https://github.com/microsoft/azure-container-apps/blob/main/docs/templates/bicep/main.bicep
@@ -161,7 +163,7 @@ resource containerApps 'Microsoft.App/containerApps@2022-10-01' = {
   name: 'container-apps'
   location: location
   properties: {
-    managedEnvironmentId: managedEnvironments.id
+    managedEnvironmentId: '/subscriptions/62f5527b-7ac9-4999-bb23-6a253ad279ea/resourceGroups/20220615LineBot1/providers/Microsoft.App/managedEnvironments/managedEnv'
     configuration: {
       registries: [
         {
