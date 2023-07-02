@@ -5,6 +5,7 @@ param secret string
 param access string
 param containerRegistryName string
 param containerVer string
+param containerAppsName string = 'capp-${toLower(random)}'
 
 var appInsightsName = 'AppInsights'
 var storageAccountName = 'fnstor${toLower(substring(replace(random, '-', ''), 0, 18))}'
@@ -160,7 +161,7 @@ resource managedEnvironments 'Microsoft.App/managedEnvironments@2022-10-01' = {
 // https://learn.microsoft.com/ja-jp/dotnet/orleans/deployment/deploy-to-azure-container-apps
 // https://github.com/microsoft/azure-container-apps/blob/main/docs/templates/bicep/main.bicep
 resource containerApps 'Microsoft.App/containerApps@2022-10-01' = {
-  name: 'container-apps'
+  name: containerAppsName
   location: location
   properties: {
     managedEnvironmentId: '/subscriptions/62f5527b-7ac9-4999-bb23-6a253ad279ea/resourceGroups/20220615LineBot1/providers/Microsoft.App/managedEnvironments/managedEnv'
